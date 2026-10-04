@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pre-Compose launch theme: dark so there is no white flash before the
+         Compose tree paints (the app supports both themes; Compose recolors
+         immediately). -->
+    <style name="Theme.Corvo" parent="android:Theme.Material.NoActionBar" />
+</resources>
