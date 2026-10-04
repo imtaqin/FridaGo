@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace = "com.imtaqin.corvo"
+    namespace = "com.imtaqin.fridago"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.imtaqin.corvo"
+        applicationId = "com.imtaqin.fridago"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
