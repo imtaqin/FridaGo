@@ -17,8 +17,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -71,7 +71,7 @@ fun LogTab(log: List<String>) {
                 colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
                 Icon(
-                    if (floating) Icons.Filled.Close else Icons.Filled.OpenInNew,
+                    if (floating) Icons.Filled.Close else Icons.AutoMirrored.Filled.OpenInNew,
                     contentDescription = null,
                     tint = MiuixTheme.colorScheme.onPrimary,
                 )
