@@ -24,7 +24,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Download
@@ -36,22 +35,6 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,16 +42,16 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.imtaqin.fridago.CorvoState
 import com.imtaqin.fridago.MainViewModel
 import com.imtaqin.fridago.core.ScriptSource
@@ -76,6 +59,19 @@ import com.imtaqin.fridago.core.TargetApp
 import com.imtaqin.fridago.ui.theme.CorvoMono
 import com.imtaqin.fridago.ui.theme.Status
 import kotlinx.coroutines.launch
+import top.yukonga.miuix.kmp.basic.BasicComponent
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.basic.InfiniteProgressIndicator
+import top.yukonga.miuix.kmp.basic.SmallTitle
+import top.yukonga.miuix.kmp.basic.Switch
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 private const val NEW_SCRIPT_TEMPLATE = """// Frida agent
 Java.perform(function () {
@@ -83,18 +79,16 @@ Java.perform(function () {
 });
 """
 
-/**
- * The whole injection flow on one screen: choose a target app, pick a script
- * from the library (or write/import one), then inject — no tab hopping.
- */
-@OptIn(ExperimentalMaterial3Api::class)
+private val InjectRed = Color(0xFFEF4444)
+
+/** Whole injection flow on one screen: target app, script (library/editor/import), inject. */
 @Composable
-fun InjectTab(state: CorvoState, vm: MainViewModel, modifier: Modifier = Modifier) {
+fun InjectTab(state: CorvoState, vm: MainViewModel) {
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
     var appPickerOpen by remember { mutableStateOf(state.selectedApp == null) }
     var appQuery by remember { mutableStateOf("") }
-    var scriptMode by rememberSaveable { mutableIntStateOf(0) } // 0 = Library, 1 = Editor
+    var scriptMode by remember { mutableIntStateOf(0) } // 0 Library, 1 Editor
     var addOpen by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
@@ -102,130 +96,67 @@ fun InjectTab(state: CorvoState, vm: MainViewModel, modifier: Modifier = Modifie
 
     LaunchedEffect(state.selectedScript?.path) {
         val sel = state.selectedScript
-        if (sel != null) {
-            name = sel.name
-            body = vm.readScript(sel)
-        }
+        if (sel != null) { name = sel.name; body = vm.readScript(sel) }
     }
 
     val filteredApps = remember(state.apps, appQuery) {
         if (appQuery.isBlank()) state.apps
-        else state.apps.filter {
-            it.label.contains(appQuery, true) || it.packageName.contains(appQuery, true)
-        }
+        else state.apps.filter { it.label.contains(appQuery, true) || it.packageName.contains(appQuery, true) }
     }
+    val muted = MiuixTheme.colorScheme.onSurfaceContainerVariant
 
     Column(
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(bottom = 28.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
     ) {
-        // ===== 1 · TARGET APP ===================================================
-        SectionLabel("Target app")
-        CorvoCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            Column {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { appPickerOpen = !appPickerOpen }
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val sel = state.selectedApp
-                    if (sel != null) {
-                        AppAvatar(sel.packageName, sel.label)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                sel.label,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                sel.packageName,
-                                style = MaterialTheme.typography.bodySmall.copy(fontFamily = CorvoMono),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    } else {
-                        Icon(
-                            Icons.Filled.PhoneAndroid,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            "Choose a target app",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                    Icon(
-                        if (appPickerOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        // ===== TARGET APP =====
+        SmallTitle("Target app")
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            val sel = state.selectedApp
+            BasicComponent(
+                title = sel?.label ?: "Choose a target app",
+                summary = sel?.packageName,
+                startAction = {
+                    if (sel != null) AppAvatar(sel.packageName, sel.label)
+                    else Icon(Icons.Filled.PhoneAndroid, contentDescription = null, tint = muted, modifier = Modifier.padding(end = 4.dp))
+                },
+                endActions = {
+                    Icon(if (appPickerOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null, tint = muted)
+                },
+                onClick = { appPickerOpen = !appPickerOpen },
+            )
+            if (appPickerOpen) {
+                HorizontalDivider()
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextField(
+                        value = appQuery,
+                        onValueChange = { appQuery = it },
+                        label = "Search apps",
+                        useLabelAsPlaceholder = true,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
-                }
-
-                if (appPickerOpen) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(
-                            value = appQuery,
-                            onValueChange = { appQuery = it },
-                            placeholder = { Text("Search apps") },
-                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                            singleLine = true,
-                            shape = MaterialTheme.shapes.large,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(
-                                    checked = state.includeSystemApps,
-                                    onCheckedChange = { vm.setIncludeSystemApps(it) },
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    "System apps",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            OutlinedButton(onClick = { vm.refreshApps() }, shape = MaterialTheme.shapes.large) {
-                                Icon(Icons.Filled.Refresh, contentDescription = null, Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (state.apps.isEmpty()) "Load" else "Reload")
-                            }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(checked = state.includeSystemApps, onCheckedChange = { vm.setIncludeSystemApps(it) })
+                            Spacer(Modifier.width(8.dp))
+                            Text("System apps", style = MiuixTheme.textStyles.body2, color = muted)
                         }
-                        if (filteredApps.isEmpty()) {
-                            Text(
-                                if (state.apps.isEmpty()) "Tap Load to scan installed apps."
-                                else "Nothing matches “$appQuery”",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 16.dp),
-                            )
-                        } else {
-                            LazyColumn(Modifier.fillMaxWidth().height(260.dp)) {
-                                items(filteredApps, key = { it.packageName }) { app ->
-                                    AppRow(
-                                        app = app,
-                                        selected = state.selectedApp?.packageName == app.packageName,
-                                        onClick = {
-                                            vm.selectApp(app)
-                                            appPickerOpen = false
-                                        },
-                                    )
+                        Button(onClick = { vm.refreshApps() }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (state.apps.isEmpty()) "Load" else "Reload")
+                        }
+                    }
+                    if (filteredApps.isEmpty()) {
+                        Text(
+                            if (state.apps.isEmpty()) "Tap Load to scan installed apps." else "No match for “$appQuery”",
+                            style = MiuixTheme.textStyles.body2, color = muted,
+                        )
+                    } else {
+                        LazyColumn(Modifier.fillMaxWidth().height(260.dp)) {
+                            items(filteredApps, key = { it.packageName }) { app ->
+                                AppRow(app, state.selectedApp?.packageName == app.packageName) {
+                                    vm.selectApp(app); appPickerOpen = false
                                 }
                             }
                         }
@@ -234,217 +165,119 @@ fun InjectTab(state: CorvoState, vm: MainViewModel, modifier: Modifier = Modifie
             }
         }
 
-        // ===== 2 · SCRIPT =======================================================
-        SectionLabel("Script")
-        CorvoCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    listOf("Library", "Editor").forEachIndexed { i, label ->
-                        SegmentedButton(
-                            selected = scriptMode == i,
-                            onClick = { scriptMode = i },
-                            shape = SegmentedButtonDefaults.itemShape(i, 2),
-                        ) { Text(label) }
-                    }
+        // ===== SCRIPT =====
+        SmallTitle("Script")
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SegButton("Library", scriptMode == 0, Modifier.weight(1f)) { scriptMode = 0 }
+                    SegButton("Editor", scriptMode == 1, Modifier.weight(1f)) { scriptMode = 1 }
                 }
 
                 if (scriptMode == 0) {
-                    // ---- library ----
                     if (state.scripts.isEmpty()) {
-                        Text(
-                            "No scripts yet — add one from CodeShare or a URL below.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("No scripts yet — add one from CodeShare or a URL below.", style = MiuixTheme.textStyles.body2, color = muted)
                     } else {
                         Column {
                             state.scripts.forEach { s ->
-                                val isSelected = state.selectedScript?.path == s.path
-                                Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clip(MaterialTheme.shapes.medium)
-                                        .clickable { vm.selectScript(s) }
-                                        .padding(vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Description,
-                                        contentDescription = null,
-                                        tint = if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Text(
-                                        s.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Filled.CheckCircle,
-                                            contentDescription = "active",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                        Spacer(Modifier.width(4.dp))
-                                    }
-                                    IconButton(onClick = {
-                                        scope.launch {
-                                            vm.deleteScript(s)
-                                            if (isSelected) { name = ""; body = "" }
+                                val isSel = state.selectedScript?.path == s.path
+                                BasicComponent(
+                                    title = s.name,
+                                    startAction = {
+                                        Icon(Icons.Filled.Description, contentDescription = null, tint = if (isSel) MiuixTheme.colorScheme.primary else muted, modifier = Modifier.padding(end = 4.dp).size(22.dp))
+                                    },
+                                    endActions = {
+                                        if (isSel) {
+                                            Icon(Icons.Filled.CheckCircle, contentDescription = "active", tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                            Spacer(Modifier.width(4.dp))
                                         }
-                                    }) {
-                                        Icon(
-                                            Icons.Filled.Delete,
-                                            contentDescription = "delete",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
+                                        IconButton(onClick = {
+                                            scope.launch { vm.deleteScript(s); if (isSel) { name = ""; body = "" } }
+                                        }) {
+                                            Icon(Icons.Filled.Delete, contentDescription = "delete", tint = muted, modifier = Modifier.size(20.dp))
+                                        }
+                                    },
+                                    onClick = { vm.selectScript(s) },
+                                )
                             }
                         }
                     }
 
-                    // ---- add / discover (collapsible) ----
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    Row(
-                        Modifier.fillMaxWidth().clickable { addOpen = !addOpen }.padding(vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Filled.Add,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth().clickable { addOpen = !addOpen }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = MiuixTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Add from CodeShare or URL",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Icon(
-                            if (addOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Text("Add from CodeShare or URL", color = MiuixTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+                        Icon(if (addOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, contentDescription = null, tint = muted)
                     }
-                    if (addOpen) AddScriptSection(state, vm, importInput, onImportInput = { importInput = it })
+                    if (addOpen) AddScriptSection(state, vm, importInput, onImportInput = { importInput = it }, muted = muted)
                 } else {
-                    // ---- editor ----
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        placeholder = { Text("file-name.js") },
-                        leadingIcon = { Icon(Icons.Filled.Code, contentDescription = null) },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.large,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
+                    TextField(value = name, onValueChange = { name = it }, label = "file-name.js", useLabelAsPlaceholder = true, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    TextField(
                         value = body,
                         onValueChange = { body = it },
-                        placeholder = { Text("// agent source") },
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = CorvoMono),
-                        shape = MaterialTheme.shapes.large,
+                        label = "// agent source",
+                        useLabelAsPlaceholder = true,
+                        textStyle = TextStyle(fontFamily = CorvoMono, fontSize = 13.sp),
                         modifier = Modifier.fillMaxWidth().height(240.dp),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(
-                            onClick = { if (name.isNotBlank()) vm.saveScript(name, body) },
-                            enabled = name.isNotBlank(),
-                            shape = MaterialTheme.shapes.large,
-                            modifier = Modifier.weight(1f),
-                        ) { Text("Save") }
-                        OutlinedButton(
-                            onClick = {
-                                name = "agent-${System.currentTimeMillis() / 1000}.js"
-                                body = NEW_SCRIPT_TEMPLATE
-                            },
-                            shape = MaterialTheme.shapes.large,
-                            modifier = Modifier.weight(1f),
-                        ) { Text("New") }
+                        Button(onClick = { if (name.isNotBlank()) vm.saveScript(name, body) }, enabled = name.isNotBlank(), colors = ButtonDefaults.buttonColorsPrimary(), modifier = Modifier.weight(1f)) {
+                            Text("Save", color = MiuixTheme.colorScheme.onPrimary)
+                        }
+                        Button(onClick = { name = "agent-${System.currentTimeMillis() / 1000}.js"; body = NEW_SCRIPT_TEMPLATE }, modifier = Modifier.weight(1f)) {
+                            Text("New")
+                        }
                     }
                 }
             }
         }
 
-        // ===== 3 · INJECT =======================================================
+        // ===== INJECT =====
         val sel = state.selectedApp
         val script = state.selectedScript
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                StatChip(
-                    "app: ${sel?.label ?: "none"}",
-                    color = if (sel != null) Status.Ok else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                StatChip(
-                    "script: ${script?.name ?: "none"}",
-                    color = if (script != null) Status.Ok else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
+        SmallTitle("Inject")
+        Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            BasicComponent(title = "App", summary = sel?.label ?: "none selected", endActions = { if (sel != null) Text("ready", color = Status.Ok, style = MiuixTheme.textStyles.body2) })
+            BasicComponent(title = "Script", summary = script?.name ?: "none selected", endActions = { if (script != null) Text("ready", color = Status.Ok, style = MiuixTheme.textStyles.body2) })
+        }
+        Box(Modifier.padding(12.dp)) {
+            val injecting = state.injecting
             Button(
                 onClick = {
-                    if (state.injecting) {
-                        vm.stopInject()
-                    } else {
-                        // Ask for the overlay permission once so logs can float
-                        // over the target app; inject either way.
+                    if (injecting) vm.stopInject()
+                    else {
                         if (!Settings.canDrawOverlays(ctx)) {
-                            ctx.startActivity(
-                                Intent(
-                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                                    Uri.parse("package:${ctx.packageName}"),
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
+                            ctx.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${ctx.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                         }
                         vm.inject()
                     }
                 },
-                enabled = state.injecting || (state.serverRunning && sel != null && script != null),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (state.injecting) MaterialTheme.colorScheme.errorContainer
-                    else MaterialTheme.colorScheme.primary,
-                    contentColor = if (state.injecting) MaterialTheme.colorScheme.onErrorContainer
-                    else MaterialTheme.colorScheme.onPrimary,
-                ),
-                modifier = Modifier.fillMaxWidth().height(56.dp),
+                enabled = injecting || (state.serverRunning && sel != null && script != null),
+                colors = if (injecting) ButtonDefaults.buttonColors(color = InjectRed) else ButtonDefaults.buttonColorsPrimary(),
+                modifier = Modifier.fillMaxWidth().height(52.dp),
             ) {
-                Icon(
-                    if (state.injecting) Icons.Filled.Stop else Icons.Filled.PlayArrow,
-                    contentDescription = null,
-                )
+                Icon(if (injecting) Icons.Filled.Stop else Icons.Filled.PlayArrow, contentDescription = null, tint = MiuixTheme.colorScheme.onPrimary)
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    if (state.injecting) "Stop injection" else "Inject",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Text(if (injecting) "Stop injection" else "Inject", color = MiuixTheme.colorScheme.onPrimary)
             }
-            if (!state.serverRunning && !state.injecting) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Start the server on the Server tab first.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        }
+        if (!state.serverRunning && !state.injecting) {
+            Text("Start the server on the Server tab first.", style = MiuixTheme.textStyles.body2, color = muted, modifier = Modifier.padding(horizontal = 24.dp))
         }
     }
 }
 
-// ---- add-from-source section (CodeShare search + URL import) -----------------
+@Composable
+private fun SegButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = if (selected) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+        modifier = modifier,
+    ) {
+        Text(label, color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface)
+    }
+}
 
 @Composable
 private fun AddScriptSection(
@@ -452,160 +285,75 @@ private fun AddScriptSection(
     vm: MainViewModel,
     importInput: String,
     onImportInput: (String) -> Unit,
+    muted: Color,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // CodeShare keyword search
-        OutlinedTextField(
+        TextField(
             value = state.searchQuery,
             onValueChange = { vm.setSearchQuery(it) },
-            placeholder = { Text("Search CodeShare: ssl pinning, …") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            label = "Search CodeShare: ssl pinning, …",
+            useLabelAsPlaceholder = true,
             singleLine = true,
-            shape = MaterialTheme.shapes.large,
             modifier = Modifier.fillMaxWidth(),
         )
-        Button(
-            onClick = { vm.searchScripts() },
-            enabled = !state.searching && state.searchQuery.isNotBlank(),
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (state.searching) {
-                CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-            }
-            Text("Search CodeShare")
+        Button(onClick = { vm.searchScripts() }, enabled = !state.searching && state.searchQuery.isNotBlank(), colors = ButtonDefaults.buttonColorsPrimary(), modifier = Modifier.fillMaxWidth()) {
+            if (state.searching) { InfiniteProgressIndicator(size = 18.dp, color = MiuixTheme.colorScheme.onPrimary); Spacer(Modifier.width(8.dp)) }
+            Text("Search CodeShare", color = MiuixTheme.colorScheme.onPrimary)
         }
-        state.searchStatus?.let {
-            Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        state.searchStatus?.let { Text(it, style = MiuixTheme.textStyles.body2, color = muted) }
         state.searchResults.forEach { hit ->
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !state.importing) { vm.importHit(hit) }
-                    .padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            HorizontalDivider()
+            Row(Modifier.fillMaxWidth().clickable(enabled = !state.importing) { vm.importHit(hit) }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        hit.title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        StatChip("@${hit.owner}")
-                        StatChip("♥ ${hit.likes}")
-                    }
+                    Text(hit.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(2.dp))
+                    Text("@${hit.owner} · ♥ ${hit.likes}", style = MiuixTheme.textStyles.body2, color = muted)
                 }
                 Spacer(Modifier.width(8.dp))
-                Icon(Icons.Filled.Download, contentDescription = "import", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Download, contentDescription = "import", tint = MiuixTheme.colorScheme.primary)
             }
         }
 
-        // Direct URL import
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        HorizontalDivider()
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ScriptSource.entries.forEach { src ->
-                FilterChip(
-                    selected = state.importSource == src,
-                    onClick = { vm.setImportSource(src) },
-                    label = { Text(src.label) },
-                )
+                val on = state.importSource == src
+                Button(onClick = { vm.setImportSource(src) }, colors = if (on) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors()) {
+                    Text(src.label, color = if (on) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurface)
+                }
             }
         }
-        OutlinedTextField(
-            value = importInput,
-            onValueChange = onImportInput,
-            placeholder = { Text(state.importSource.hint) },
-            singleLine = true,
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = { vm.importScript(importInput) },
-            enabled = !state.importing && importInput.isNotBlank(),
-            shape = MaterialTheme.shapes.large,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            if (state.importing) {
-                CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                Spacer(Modifier.width(8.dp))
-            }
-            Text(if (state.importing) "Fetching…" else "Fetch script")
+        TextField(value = importInput, onValueChange = onImportInput, label = state.importSource.hint, useLabelAsPlaceholder = true, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Button(onClick = { vm.importScript(importInput) }, enabled = !state.importing && importInput.isNotBlank(), colors = ButtonDefaults.buttonColorsPrimary(), modifier = Modifier.fillMaxWidth()) {
+            if (state.importing) { InfiniteProgressIndicator(size = 18.dp, color = MiuixTheme.colorScheme.onPrimary); Spacer(Modifier.width(8.dp)) }
+            Text(if (state.importing) "Fetching…" else "Fetch script", color = MiuixTheme.colorScheme.onPrimary)
         }
-        state.importStatus?.let { status ->
-            Text(
-                status,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (status.startsWith("failed")) MaterialTheme.colorScheme.error else Status.Ok,
-            )
-        }
+        state.importStatus?.let { Text(it, style = MiuixTheme.textStyles.body2, color = if (it.startsWith("failed")) Status.Err else Status.Ok) }
     }
 }
 
-// ---- shared app bits --------------------------------------------------------
-
 @Composable
-private fun AppAvatar(packageName: String, label: String, sizeDp: Int = 42) {
+private fun AppAvatar(packageName: String, label: String) {
     Box(
-        Modifier
-            .size(sizeDp.dp)
-            .clip(CircleShape)
-            .background(avatarColor(packageName)),
+        Modifier.size(40.dp).clip(CircleShape).background(avatarColor(packageName)).padding(end = 0.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            label.trim().take(1).uppercase(),
-            style = MaterialTheme.typography.titleMedium,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-        )
+        Text(label.trim().take(1).uppercase(), color = Color.White)
     }
 }
 
 @Composable
 private fun AppRow(app: TargetApp, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        AppAvatar(app.packageName, app.label)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                app.label,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                app.packageName,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = CorvoMono),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (selected) {
-            Icon(Icons.Filled.CheckCircle, contentDescription = "selected", tint = MaterialTheme.colorScheme.primary)
-        } else if (app.isSystem) {
-            Icon(
-                Icons.Filled.Public,
-                contentDescription = "system app",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(18.dp),
-            )
-        }
-    }
+    BasicComponent(
+        title = app.label,
+        summary = app.packageName,
+        startAction = { AppAvatar(app.packageName, app.label) },
+        endActions = {
+            if (selected) Icon(Icons.Filled.CheckCircle, contentDescription = "selected", tint = MiuixTheme.colorScheme.primary)
+            else if (app.isSystem) Icon(Icons.Filled.Public, contentDescription = "system", tint = MiuixTheme.colorScheme.onSurfaceContainerVariant, modifier = Modifier.size(18.dp))
+        },
+        onClick = onClick,
+    )
 }
 
 private fun avatarColor(key: String): Color {

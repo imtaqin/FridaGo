@@ -19,10 +19,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,14 +31,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.imtaqin.fridago.service.FloatingLogService
 import com.imtaqin.fridago.ui.theme.CorvoMono
 import com.imtaqin.fridago.ui.theme.Status
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
-/**
- * Terminal-style log viewer. Lines are color-coded by prefix: `[!]` errors,
- * `[+]` success, `[*]` notes, everything else neutral. A "Float over apps"
- * toggle pops the same stream out into a draggable overlay window.
- */
 @Composable
-fun LogTab(log: List<String>, modifier: Modifier = Modifier) {
+fun LogTab(log: List<String>) {
     val ctx = LocalContext.current
     val floating by FloatingLogService.running.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
@@ -51,12 +48,12 @@ fun LogTab(log: List<String>, modifier: Modifier = Modifier) {
         if (log.isNotEmpty()) listState.scrollToItem(log.lastIndex)
     }
 
-    Column(modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.End,
         ) {
-            FilledTonalButton(
+            Button(
                 onClick = {
                     if (floating) {
                         FloatingLogService.stop(ctx)
@@ -71,14 +68,18 @@ fun LogTab(log: List<String>, modifier: Modifier = Modifier) {
                         )
                     }
                 },
-                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColorsPrimary(),
             ) {
                 Icon(
                     if (floating) Icons.Filled.Close else Icons.Filled.OpenInNew,
                     contentDescription = null,
+                    tint = MiuixTheme.colorScheme.onPrimary,
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(if (floating) "Close floating" else "Float over apps")
+                Text(
+                    if (floating) "Close floating" else "Float over apps",
+                    color = MiuixTheme.colorScheme.onPrimary,
+                )
             }
         }
 
@@ -88,44 +89,33 @@ fun LogTab(log: List<String>, modifier: Modifier = Modifier) {
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No output yet", style = MiuixTheme.textStyles.title2)
                     Text(
-                        "No output yet",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        "Server and inject logs will appear here.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        "Server and inject logs appear here.",
+                        style = MiuixTheme.textStyles.body2,
+                        color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
                     )
                 }
             }
         } else {
-            CorvoCard(
-                Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                container = MaterialTheme.colorScheme.surfaceContainerLow,
-            ) {
+            Card(Modifier.fillMaxWidth().weight(1f).padding(bottom = 12.dp)) {
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(14.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
                     items(log) { line ->
-                        val color = when {
-                            line.contains("[!]") -> Status.Err
-                            line.contains("[+]") -> Status.Ok
-                            line.contains("[*]") -> MaterialTheme.colorScheme.primary
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        }
                         Text(
                             line,
                             fontFamily = CorvoMono,
                             fontSize = 11.5.sp,
                             lineHeight = 17.sp,
-                            color = color,
+                            color = when {
+                                line.contains("[!]") -> Status.Err
+                                line.contains("[+]") -> Status.Ok
+                                line.contains("[*]") -> MiuixTheme.colorScheme.primary
+                                else -> MiuixTheme.colorScheme.onSurfaceContainerVariant
+                            },
                         )
                     }
                 }

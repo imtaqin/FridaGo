@@ -27,11 +27,6 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -43,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -51,6 +45,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.imtaqin.fridago.ui.theme.Status
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.basic.Card
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * Hard permission gate. FridaGo asks for notifications + "display over other
@@ -75,7 +76,6 @@ fun PermissionGate(content: @Composable () -> Unit) {
         ActivityResultContracts.RequestPermission(),
     ) { notifGranted = it }
 
-    // Re-check on resume: overlay is granted in Settings, notifications via dialog.
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val obs = LifecycleEventObserver { _, event ->
@@ -93,13 +93,13 @@ fun PermissionGate(content: @Composable () -> Unit) {
         return
     }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { inner ->
+    Scaffold { inner ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(inner)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(48.dp))
@@ -107,40 +107,37 @@ fun PermissionGate(content: @Composable () -> Unit) {
                 Modifier
                     .size(76.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                    .background(MiuixTheme.colorScheme.primary.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     Icons.Filled.Bolt,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    tint = MiuixTheme.colorScheme.primary,
                     modifier = Modifier.size(42.dp),
                 )
             }
             Spacer(Modifier.height(20.dp))
             Text(
                 "FridaGo needs permission",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
+                style = MiuixTheme.textStyles.headline1,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(8.dp))
             Text(
                 "Allow everything below to continue — the app won't start until all are granted.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
                 textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(24.dp))
 
             PermCard(
                 icon = Icons.Filled.Notifications,
                 title = "Notifications",
                 desc = "Shows the live server and floating-logs status in your shade.",
                 granted = notifGranted,
-                onGrant = {
-                    if (needsNotif) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                },
+                onGrant = { if (needsNotif) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
             )
             Spacer(Modifier.height(12.dp))
             PermCard(
@@ -161,8 +158,8 @@ fun PermissionGate(content: @Composable () -> Unit) {
             Spacer(Modifier.height(24.dp))
             Text(
                 "Root (su) is requested separately the first time you start the server.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MiuixTheme.textStyles.body2,
+                color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(40.dp))
@@ -178,30 +175,32 @@ private fun PermCard(
     granted: Boolean,
     onGrant: () -> Unit,
 ) {
-    CorvoCard(Modifier.fillMaxWidth()) {
+    Card(Modifier.fillMaxWidth()) {
         Row(
-            Modifier.padding(16.dp),
+            Modifier.fillMaxWidth().padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                tint = if (granted) Status.Ok else MaterialTheme.colorScheme.primary,
+                tint = if (granted) Status.Ok else MiuixTheme.colorScheme.primary,
             )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(title, style = MiuixTheme.textStyles.title2)
                 Text(
                     desc,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MiuixTheme.textStyles.body2,
+                    color = MiuixTheme.colorScheme.onSurfaceContainerVariant,
                 )
             }
             Spacer(Modifier.width(12.dp))
             if (granted) {
                 Icon(Icons.Filled.CheckCircle, contentDescription = "granted", tint = Status.Ok)
             } else {
-                Button(onClick = onGrant, shape = MaterialTheme.shapes.large) { Text("Allow") }
+                Button(onClick = onGrant, colors = ButtonDefaults.buttonColorsPrimary()) {
+                    Text("Allow", color = MiuixTheme.colorScheme.onPrimary)
+                }
             }
         }
     }
